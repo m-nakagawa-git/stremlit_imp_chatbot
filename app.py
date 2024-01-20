@@ -4,14 +4,17 @@ import numpy as np
 import os
 import openai
 import pandas as pd
-import time
-import datetime  # @@
+# import time
+# import datetime  # @@
 
 # # $$$$$$$$$$$$$$$$ langchain 使用時のコード start $$$$$$$$$$ !!!! $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 # from langchain_openai import ChatOpenAI                          # api direct call 使用時はコメントアウト
 # from langchain.chains import LLMChain                            # api direct call 使用時はコメントアウト
 # from langchain.prompts import PromptTemplate                     # api direct call 使用時はコメントアウト
 # # $$$$$$$$$$$$$$$$ langchain 使用時のコード start $$$$$$$$$$ !!!! $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+
+# Streamlit Community Cloudの「Secrets」からOpenAI API keyを取得
+openai.api_key = st.secrets["OpenAIAPI"]["openai_api_key"]
 
 # ページ設定
 # print('==== st.set_page_config start ====', datetime.datetime.now())  # @@@
@@ -220,8 +223,9 @@ if "button_clicked" not in st.session_state:
 
 # # $$$$$$$$$$$$$$$$ langchain 使用時のコード end $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
+
 # &&&&&&&&&&&&&&&& api direct call 使用時のコード start &&&&&&&&&& !!!! &&&&&&&&&&&&&&&&&&&&&&&&&
-# Chatgpt api call 
+# Chatgpt api call
 # gpt-4-1106-preview  gpt-3.5-turbo-16k
 @st.cache_resource
 def createCompletion(prompt):
@@ -237,7 +241,7 @@ def createCompletion(prompt):
 
 
 def load_conversation(user_message, conversation_history):
-    history  = conversation_history
+    history = conversation_history
     system_msg = f"""
     あなたは株式会社インプレスのパッケージ商品の優秀なカスタマーサポート担当です。
     以下の制約条件に従って、株式会社インプレスのお問い合わせ窓口チャット
@@ -259,9 +263,9 @@ def load_conversation(user_message, conversation_history):
     prompt = [
          {"role": "system", "content": system_msg},
          {"role": "user", "content": user_message}]
-    
+
     # プロンプトを生成し、Completion APIを使用して回答を生成します
-    # print('%%%% pronpt %%%%',prompt)
+    # print('%%%% prompt %%%%',prompt)
     completion = createCompletion(prompt)
     return completion
 # &&&&&&&&&&&&&&&& api direct call 使用時のコード end &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
@@ -315,7 +319,7 @@ def on_input_change():
 
         # Parquetファイルからデータを読み込む
         parquet_df = load_parquet_file(parquet_fname)
-        
+
         # 読み込んだデータフレームをセッション状態に保存
         st.session_state['parquet_df'] = parquet_df
         # print('@@@@@ parquet_df%% @@@@@', parquet_df)  # @@F
@@ -335,16 +339,16 @@ def on_input_change():
 
     # 回答に関連する画像格納用エリアをクリア
     image_paths_to_display = []
- 
+
     # ユーザーとボットの過去の会話履歴を組み合わせる
     conversation_history = ""
-    for i, (user_msg, bot_msg) in enumerate(
-        zip(st.session_state.past, st.session_state.generated), start=1):
+    for i, (user_msg, bot_msg) in enumerate(zip(st.session_state.past, st.session_state.generated),
+                                            start=1):
         conversation_history += (f"(history{i}) User: {user_msg}\n"
-                                f" Bot: {bot_msg['text']}\n")
-    
+                                 f" Bot: {bot_msg['text']}\n")
+
     # print('@@@@@ conversation_history 11 @@@@@', conversation_history)
-    
+
     # 各回の会話毎に画像表示用のセッションステートをリセット
     st.session_state['display_image_path'] = None
 
@@ -362,40 +366,40 @@ def on_input_change():
 
     # langchain.chainsでChatGPTから回答を得る
     # print('@@@@@ conversation_history 33 @@@@@', conversation_history)
-    # 
+    #
     # start_time_8 = time.time()  # @@@
     # # $$$$$$$$$$$$$$$$ langchain 使用時のコード start $$$$$$$$$$ !!!! $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-    # question = user_message 
+    # question = user_message
     # history  = conversation_history
-    # conversation = load_conversation() 
+    # conversation = load_conversation()
     # answer_text = conversation.predict(
     #     question=question, history=history)
     # # $$$$$$$$$$$$$$$$ langchain 使用時のコード end  $$$$$$$$$$ !!!! $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
     # &&&&&&&&&&&&&&&& api direct call 使用時のコード start &&&&&&&&&& !!!! &&&&&&&&&&&&&&&&&&&&&&&&&
-    answer_text = load_conversation(user_message, conversation_history) 
+    answer_text = load_conversation(user_message, conversation_history)
     # &&&&&&&&&&&&&&&& api direct call 使用時のコード end  &&&&&&&&&& !!!! &&&&&&&&&&&&&&&&&&&&&&&&&
-    
+
     # APIからの応答をチェック
     # print(' 回答不能 確認 ',answer_text)
     if "回答不能" in answer_text:
-        answer_text = f'''
-        申し訳ありませんが、ご質問頂いた内容についての情報を持ち合わせていませんので
-        ご回答できません。必要であれば弊社のサポートチームへ連絡をお願い致します。
-        (Tel:xxxxxx, Email:xxxxx@imprex.co.jp)
-        '''
+        answer_text = (
+            '申し訳ありませんが、ご質問頂いた内容についての情報を持ち合わせていませんので\n'
+            'ご回答できません。必要であれば弊社のサポートチームへ連絡をお願い致します。\n'
+            '(Tel:xxxxxx, Email:xxxxx@imprex.co.jp)'
+        )
 
-    # elapsed_time_8 = time.time() - start_time_8  # @@@
-    
+        # elapsed_time_8 = time.time() - start_time_8  # @@@
+
     # print(f"●●●●●●●●●●●● conversation.predict ●●●●●●●●●●●●● 処理にかかった時間: {elapsed_time_8}秒")  # @@@
     # print('answer_text',answer_text)
-    
+
     # チャットボット側の履歴に追加する
     st.session_state.generated.append(
         {"text": answer_text, "images": image_paths_to_display})
 
     # USER側の履歴に追加する
     st.session_state.past.append(user_message)
-    
+
     # send_btn_countが11になった場合、最も古い履歴を削除
     if st.session_state.send_btn_count >= 3:  # change MAX件数+1を指定する
         st.session_state.generated.pop(0)     # 最も古い要素を削除
@@ -414,8 +418,8 @@ def on_input_change():
 # <<<<< Faissを用いた類似性検索を行う関数 >>>>>
 def get_similar_texts(
         user_input, inquiry,
-        top_k=10, hit_rate_threshold=0.50
-):
+        top_k=10, hit_rate_threshold=0.50):
+
     # print('==== def get_similar_texts start ====',
     #        datetime.datetime.now())  # @@@
     # start_time_d = time.time()  # @@@
@@ -441,8 +445,7 @@ def get_similar_texts(
         # elapsed_time_b = time.time() - start_time_b  # @@@
         # print(f"●●●●●●●●●●●● Faissデータ読み込み ●●●●●●●●●●●●● 処理にかかった時間: {elapsed_time_b}秒")  # @@@
 
-
-    # USER入力のベクトル化    
+    # USER入力のベクトル化
     # start_time_e = time.time()  # @@@
     user_embedding = get_embedding(user_input)
     # elapsed_time_e = time.time() - start_time_e  # @@@
@@ -514,9 +517,8 @@ def retrieve_text(index):
             for i in range(1, data['参照画像数'] + 1)
         ]
         # elapsed_time_g = time.time() - start_time_g  # @@@
-        # print(f"●●●●●●●●●●●● def retrieve_text  ●●●●●●●●●●●●● 処理にかかった時間: {elapsed_time_g}秒")  # @@@        
-        # print('##### def retrieve_text end #####',
-            #   datetime.datetime.now())  # @@
+        # print(f"●●●●●●●●●●●● def retrieve_text  ●●●●●●●●●●●●● 処理にかかった時間: {elapsed_time_g}秒")  # @@@
+        # print('##### def retrieve_text end #####',datetime.datetime.now())  # @@
         return text, image_paths
     else:
         # print('##### def retrieve_text end #####',
@@ -547,8 +549,8 @@ with st.container():
         key="user_message"    # 高さ3行分 最小値
     )
     st.button("送信", on_click=on_input_change)
-    
-    
+
+
 # ----------------------------------------------------------------------------
 # parquet データ取得
 @st.cache_data
@@ -570,7 +572,7 @@ chat_placeholder = st.empty()
 
 # print('$$$$$$$$$$$$ 画面リセット終了 &&&&&&&&&&&&&', datetime.datetime.now())
 # # 会話履歴の表示と参考画像の一覧表表示
-if st.session_state.button_clicked:    
+if st.session_state.button_clicked:
     # print('##### point08 #####')
     # start_time_9 = time.time()  # @@@
     img_count = 0
@@ -578,8 +580,8 @@ if st.session_state.button_clicked:
         # 会話履歴を逆順にして新しいメッセージが最上位に表示されるようにする
         # print('##### point08 kaiwa rireki start #####',
         # datetime.datetime.now())
-        for i in reversed(range(len(st.session_state.generated))):
         # for i in range(len(st.session_state.generated)):
+        for i in reversed(range(len(st.session_state.generated))):
             user_outmsg = st.session_state.past[i]
             bot_outmsg = st.session_state.generated[i]
 
@@ -594,7 +596,7 @@ if st.session_state.button_clicked:
                 user_outmsg_lines = user_outmsg.split('\n')
                 for line in user_outmsg_lines:
                     st.markdown(f"<p style='color: white'>{line}</p>", unsafe_allow_html=True)
-            
+
             st.markdown("---")
             col1, col2 = st.columns([1, 15])
             with col1:
@@ -607,8 +609,6 @@ if st.session_state.button_clicked:
                 bot_outmsg_lines = bot_outmsg['text'].split('\n')
                 for line in bot_outmsg_lines:
                     st.markdown(f"<p style='color: white'>{line}</p>", unsafe_allow_html=True)
-
-              
 
             # 画像表示用のセッションステートを初期化
             if 'display_image_path' not in st.session_state:
@@ -635,4 +635,4 @@ if st.session_state.button_clicked:
                     use_column_width=True)
 
     # elapsed_time_9 = time.time() - start_time_9  # @@@
-    # print(f"●●●●●●●●●●●● 会話履歴の表示と参考画像の一覧表表示  ●●●●●●●●●●●●● 処理にかかった時間: {elapsed_time_9}秒")  # @@@    
+    # print(f"●●●●●●●●●●●● 会話履歴の表示と参考画像の一覧表表示  ●●●●●●●●●●●●● 処理にかかった時間: {elapsed_time_9}秒")  # @@@
