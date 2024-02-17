@@ -1,6 +1,14 @@
 [theme]
-primaryColor="#000000"  
-backgroundColor="#0099FF"   
-secondaryBackgroundColor="#FFFFFF"  
+primaryColor="#000000"
+backgroundColor="#0099FF"
+secondaryBackgroundColor="#FFFFFF"
 textColor="#000000" # 黒
 font="sans serif"
+# Streamlitの設定をカスタマイズする
+[browser]
+# 画面右下の「Manage app」ボタンを非表示にする
+gatherUsageStats = false
+[runner]
+magicEnabled = true
+[client]
+toolbarMode = "viewer"

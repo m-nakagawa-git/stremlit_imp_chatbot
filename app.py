@@ -4,34 +4,26 @@ import numpy as np
 import os
 import openai
 import pandas as pd
+import requests
+from dotenv import load_dotenv
+import boto3
+import json
 # import time
 # import datetime  # @@
 
-# # $$$$$$$$$$$$$$$$ langchain 使用時のコード start $$$$$$$$$$ !!!! $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-# from langchain_openai import ChatOpenAI                          # api direct call 使用時はコメントアウト
-# from langchain.chains import LLMChain                            # api direct call 使用時はコメントアウト
-# from langchain.prompts import PromptTemplate                     # api direct call 使用時はコメントアウト
-# # $$$$$$$$$$$$$$$$ langchain 使用時のコード start $$$$$$$$$$ !!!! $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-
-# Streamlit Community Cloudの「Secrets」からOpenAI API keyを取得
-openai.api_key = st.secrets["OpenAIAPI"]["openai_api_key"]
-
 # ページ設定
-# print('==== st.set_page_config start ====', datetime.datetime.now())  # @@@
-# start_time_1 = time.time()  # @@@
 st.set_page_config(
     page_title="iMPRESS-AI Chatbot",
     page_icon="icon/AIイラスト.png",
 )
-# elapsed_time_1 = time.time() - start_time_1  # @@@
-# print(f"==== st.set_page_config end ==== 処理にかかった時間: {elapsed_time_1}秒")  # @@@
+
+# 環境変数の読み込み
+load_dotenv()
 
 # 2つの列を作成（左側の列にはタイトル、右側の列には画像を配置）
 col1, col2 = st.columns([3, 1])  # 列の幅比を調整できます
 
 # 左側の列にカスタムCSS タイトルを配置
-# print('==== WINNDOW SET START ====', datetime.datetime.now())  # @@@
-# start_time_2 = time.time()  # @@@
 col1.markdown("""
     <style>
     .title-style {
@@ -67,14 +59,10 @@ st.markdown("""
 # 右側の列に画像を配置
 # 画像の解像度に合わせて適切なサイズを指定
 # use_column_width=True は画像を列の幅に合わせて表示
-# print('==== right roboimage_sub.png ====', datetime.datetime.now())  # @@@
 col2.image("icon/roboimage_sub.png", use_column_width=True)
 
 
-# 環境変数の読み込み
-# from dotenv import load_dotenv
-# load_dotenv()
-
+# サイドバーの設定
 st.sidebar.markdown("**＜問合せ内容選択＞**")  # 太字
 
 # 言語選択のセレクトボックス
@@ -115,7 +103,12 @@ inquiry = st.sidebar.selectbox(
 )
 # セッション状態に問合わせ内容を保存
 st.session_state.inquiry = inquiry
-# elapsed_time_2 = time.time() - start_time_2  # @@@
+
+
+# サイドバーのチャットボットイメージ画像
+for _ in range(2):
+    st.sidebar.write("")
+st.sidebar.image("icon/roboimage_last.png", width=400)
 
 
 # <<<<< 問い合わせ内容が選択されているかどうかをチェックする関数 >>>>>
@@ -133,13 +126,38 @@ def check_inquiry_selection(inquiry):
     return True
 
 
-# サイドバーの設定
-for _ in range(2):
-    st.sidebar.write("")
-st.sidebar.image("icon/roboimage_last.png", width=400)
+# <<<<< Fastapiにリクエストして、OpenAIのAPIKEYを取得する関数 >>>>>
+def authenticate_and_get_openai_key():
+    # 実行環境の判断
+    is_aws = os.getenv('AWS_ENV') == 'production'
 
-# print(f"==== WINNDOW SET ==== 処理にかかった時間: {elapsed_time_2}秒")  # @@@
-# print('==== WINNDOW SET END  ====', datetime.datetime.now())  # @@@
+    # 認証キーの取得
+    if is_aws:
+        # AWS環境の場合
+        client = boto3.client('secretsmanager')
+        response = client.get_secret_value(SecretId="Authentication_key")
+        secret_dict = json.loads(response['SecretString'])
+        authentication_key = secret_dict.get("Authentication_key")
+        print('%%%%%% secretsmanager value %%%%%%', authentication_key)  # @@@本番デプロイ時にはコメントアウト
+    else:
+        # ローカル環境の場合
+        authentication_key = os.getenv("Authentication_key")
+        print('%%%%%% local.env value %%%%%%', authentication_key)       # @@@本番デプロイ時にはコメントアウト
+
+    # APIエンドポイントのURL   @@@本番組込時には適切なURLに変更する
+    # FastAPIのエンドポイントを適切に指定する
+    api_url = "https://fastapi-impapikey.onrender.com/verify-authentication-key"
+
+    # 認証キーを使ってAPIを呼び出し
+    if "openai_api_key" not in st.session_state:
+        response = requests.post(api_url, json={"client_key": authentication_key})
+        if response.status_code == 200:
+            openai_api_key = response.json()["decrypted_api_key"]
+            openai.api_key = openai_api_key
+            st.session_state["openai_api_key"] = openai_api_key
+        else:
+            st.error("認証に失敗しました。")
+
 
 
 # セッション状態に初期起動フラグを設定
@@ -173,59 +191,8 @@ if "button_clicked" not in st.session_state:
     st.session_state.button_clicked = False
     # print('##### No5 : send_button False set #####')
 
-# # $$$$$$$$$$$$$$$$ langchain 使用時のコード start $$$$$$$$$$ !!!! $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-# template = (
-#     "あなたは株式会社インプレスのパッケージ商品の優秀なカスタマーサポート担当です。\n"
-#     "以下の制約条件に従って、株式会社インプレスのお問い合わせ窓口チャット\n"
-#     "ボットとしてユーザーからの最新質問に回答して下さい。\n"
-#     "---\n"
-#     "# 制約条件:\n"
-#     "- ユーザーからの最新質問に対して、回答時の参考情報を参考にして回答文を生成して下さい。\n"
-#     "- 回答内容は、ユーザーからの最新質問に対してのみ回答して下さい。\n"
-#     "- 回答できないと判断した場合は、回答文は「回答不能」とセットして下さい。\n"
-#     "- 回答内容には、回答時の参考情報の中に含まれているユーザーからの質問には回答しないで下さい。\n"
-#     "- 回答は見出し、箇条書き、表などを使って人間が読みやすく表現してください。\n"
-#     "\n"
-#     "# ユーザーからの最新質問:\n"
-#     "{question}\n"
-#     "\n"
-#     "#回答時の参考情報:\n"
-#     "{history}\n"
-#     "\n"
-#     "# 回答文:\n"
-#     )
 
-# # 会話プロンプトを作成
-# prompt = PromptTemplate(
-#     input_variables=["question", "history"],
-#     template=template
-# )
-
-# # ----------------------------------------------------------------------------
-# # <<<<< 会話の読み込みを行う関数 >>>>>
-# #  gpt-4-1106-preview  gpt-3.5-turbo-16k
-# @st.cache_resource
-# def load_conversation():
-#     print('==== def load_conversation start ====')
-#     start_time = time.time()  # @@@
-#     llm = ChatOpenAI(
-#         model_name="gpt-3.5-turbo-16k",
-#         temperature=0
-#     )
-#     conversation = LLMChain(
-#         llm=llm,
-#         prompt=prompt,
-#         verbose=True)
-#     elapsed_time = time.time() - start_time  # @@@
-#     print(f"==== def load_conversation ==== 処理にかかった時間: {elapsed_time}秒")  # @@@
-#     print('==== def load_conversation end ====')
-#     return conversation
-
-# # $$$$$$$$$$$$$$$$ langchain 使用時のコード end $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-
-
-# &&&&&&&&&&&&&&&& api direct call 使用時のコード start &&&&&&&&&& !!!! &&&&&&&&&&&&&&&&&&&&&&&&&
-# Chatgpt api call
+# Chatgpt api direct call
 # gpt-4-1106-preview  gpt-3.5-turbo-16k
 @st.cache_resource
 def createCompletion(prompt):
@@ -268,7 +235,6 @@ def load_conversation(user_message, conversation_history):
     # print('%%%% prompt %%%%',prompt)
     completion = createCompletion(prompt)
     return completion
-# &&&&&&&&&&&&&&&& api direct call 使用時のコード end &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 
 
 # ----------------------------------------------------------------------------
@@ -301,6 +267,9 @@ def on_input_change():
         if not check_inquiry_selection(inquiry):
             st.session_state.send_btn_count = 0
             return  # 問い合わせ内容を未選択の場合、ここで処理を終了
+
+        # FastAPIでOpenAIのAPIKEYを取得
+        authenticate_and_get_openai_key()
 
         # print('##### Parquetファイル読み込み開始 #####')  # @@
         # start_time_b = time.time()
@@ -364,21 +333,9 @@ def on_input_change():
             # 画像格納用エリアに該当の画像データ格納場所のPATHを追加する
             image_paths_to_display.extend(image_paths)
 
-    # langchain.chainsでChatGPTから回答を得る
-    # print('@@@@@ conversation_history 33 @@@@@', conversation_history)
-    #
-    # start_time_8 = time.time()  # @@@
-    # # $$$$$$$$$$$$$$$$ langchain 使用時のコード start $$$$$$$$$$ !!!! $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-    # question = user_message
-    # history  = conversation_history
-    # conversation = load_conversation()
-    # answer_text = conversation.predict(
-    #     question=question, history=history)
-    # # $$$$$$$$$$$$$$$$ langchain 使用時のコード end  $$$$$$$$$$ !!!! $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-    # &&&&&&&&&&&&&&&& api direct call 使用時のコード start &&&&&&&&&& !!!! &&&&&&&&&&&&&&&&&&&&&&&&&
+    # api direct call
     answer_text = load_conversation(user_message, conversation_history)
-    # &&&&&&&&&&&&&&&& api direct call 使用時のコード end  &&&&&&&&&& !!!! &&&&&&&&&&&&&&&&&&&&&&&&&
-
+    
     # APIからの応答をチェック
     # print(' 回答不能 確認 ',answer_text)
     if "回答不能" in answer_text:
@@ -636,3 +593,4 @@ if st.session_state.button_clicked:
 
     # elapsed_time_9 = time.time() - start_time_9  # @@@
     # print(f"●●●●●●●●●●●● 会話履歴の表示と参考画像の一覧表表示  ●●●●●●●●●●●●● 処理にかかった時間: {elapsed_time_9}秒")  # @@@
+
